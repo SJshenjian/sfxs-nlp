@@ -1,0 +1,125 @@
+PUT enterprise_info
+{
+  "mappings": {
+    "properties": {
+      "company_name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "business_status": {
+        "type": "keyword"
+      },
+      "legal_representative": {
+        "type": "keyword"
+      },
+      "registered_capital": {
+        "type": "text"
+      },
+      "paid_in_capital": {
+        "type": "text"
+      },
+      "establishment_date": {
+        "type": "date",
+        "format": "yyyy-MM-dd"
+      },
+      "approval_date": {
+        "type": "date",
+        "format": "yyyy-MM-dd"
+      },
+      "business_term": {
+        "type": "text"
+      },
+      "province": {
+        "type": "keyword"
+      },
+      "city": {
+        "type": "keyword"
+      },
+      "district": {
+        "type": "keyword"
+      },
+      "unified_social_credit_code": {
+        "type": "keyword"
+      },
+      "taxpayer_identification_number": {
+        "type": "keyword"
+      },
+      "business_registration_number": {
+        "type": "keyword"
+      },
+      "organization_code": {
+        "type": "keyword"
+      },
+      "insured_employees": {
+        "type": "integer"
+      },
+      "company_type": {
+        "type": "keyword"
+      },
+      "industry": {
+        "type": "keyword"
+      },
+      "former_name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "registered_address": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "website": {
+        "type": "keyword"
+      },
+      "contact_phone": {
+        "type": "keyword"
+      },
+      "email": {
+        "type": "keyword"
+      },
+      "business_scope": {
+        "type": "text"
+      },
+      "english_name": {
+      "type": "text"
+    },
+    "company_size": {
+      "type": "keyword"
+    },
+    "source": {
+      "type": "keyword"
+    },
+    "taxpayer_qualification": {
+      "type": "keyword"
+    },
+    "website": {
+      "type": "keyword"
+    },
+    "primary_industry": {
+      "type": "keyword"
+    },
+    "secondary_industry": {
+      "type": "keyword"
+    },
+    "tertiary_industry": {
+      "type": "keyword"
+    },
+    "registration_authority": {
+      "type": "keyword"
+    },
+    "location": {
+      "type": "geo_point"
+    }
+  }
+}
