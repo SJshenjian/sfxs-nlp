@@ -74,77 +74,46 @@ def process_chunk(chunk):
         char_set.update(sentence)
     return char_set
 
-# 并行构建词汇表
-def build_vocab_parallel(file_path, num_processes=4):
-    """
-    并行构建字符表和标签表。
-
-    Args:
-        file_path (str): 训练数据文件路径。
-        num_processes (int): 并行进程数。
-
-    Returns:
-        tuple: (char2idx, tag2idx, idx2tag)
-            - char2idx: 字符到索引的映射字典。
-            - tag2idx: 标签到索引的映射字典。
-            - idx2tag: 索引到标签的映射字典。
-    """
-    # 初始化字符表
-    char2idx = {"<PAD>": 0, "<UNK>": 1}
-
-    # 初始化标签表（固定标签集，无需并行计算）
-    tag2idx = {
-        "B-PROV": 0, "I-PROV": 1, "E-PROV": 2,
-        "B-CITY": 3, "I-CITY": 4, "E-CITY": 5,
-        "B-DISTRICT": 6, "I-DISTRICT": 7, "E-DISTRICT": 8,
-        "B-TOWN": 9, "I-TOWN": 10, "E-TOWN": 11,
-        "B-EXTRA": 12, "I-EXTRA": 13, "E-EXTRA": 14,
-        "START": 15
-    }
-    idx2tag = {v: k for k, v in tag2idx.items()}
-
-    # 并行构建字符表
-    with Pool(processes=num_processes) as pool:
-        results = pool.map(process_chunk, load_data_chunk(file_path))
-
-    # 合并所有字符集合
-    all_chars = set().union(*results)
-    for char in all_chars:
-        if char not in char2idx:
-            char2idx[char] = len(char2idx)
-
-    return char2idx, tag2idx, idx2tag
-
-# 原始构建词汇表（兼容性保留）
 def build_vocab(training_data):
-    """
-    构建字符表和标签表。
-
-    Args:
-        training_data (list): 训练数据，包含 (sentence, tags) 元组的列表。
-
-    Returns:
-        tuple: (char2idx, tag2idx, idx2tag)
-    """
-    # 初始化字符表
-    char2idx = {"<PAD>": 0, "<UNK>": 1}
-
-    # 初始化标签表
+    char2idx = {"<PAD>": 0, "<UNK>": 1}  # <PAD> 已包含在 char2idx 中
     tag2idx = {
         "B-PROV": 0, "I-PROV": 1, "E-PROV": 2,
         "B-CITY": 3, "I-CITY": 4, "E-CITY": 5,
         "B-DISTRICT": 6, "I-DISTRICT": 7, "E-DISTRICT": 8,
         "B-TOWN": 9, "I-TOWN": 10, "E-TOWN": 11,
         "B-EXTRA": 12, "I-EXTRA": 13, "E-EXTRA": 14,
-        "START": 15
+        "START": 15,
+        "<PAD>": 16  # 添加 <PAD>
     }
     idx2tag = {v: k for k, v in tag2idx.items()}
 
-    # 构建字符表
     for sentence, _ in training_data:
         for char in sentence:
             if char not in char2idx:
                 char2idx[char] = len(char2idx)
+
+    return char2idx, tag2idx, idx2tag
+
+def build_vocab_parallel(file_path, num_processes=4):
+    char2idx = {"<PAD>": 0, "<UNK>": 1}
+    tag2idx = {
+        "B-PROV": 0, "I-PROV": 1, "E-PROV": 2,
+        "B-CITY": 3, "I-CITY": 4, "E-CITY": 5,
+        "B-DISTRICT": 6, "I-DISTRICT": 7, "E-DISTRICT": 8,
+        "B-TOWN": 9, "I-TOWN": 10, "E-TOWN": 11,
+        "B-EXTRA": 12, "I-EXTRA": 13, "E-EXTRA": 14,
+        "START": 15,
+        "<PAD>": 16  # 添加 <PAD>
+    }
+    idx2tag = {v: k for k, v in tag2idx.items()}
+
+    with Pool(processes=num_processes) as pool:
+        results = pool.map(process_chunk, load_data_chunk(file_path))
+
+    all_chars = set().union(*results)
+    for char in all_chars:
+        if char not in char2idx:
+            char2idx[char] = len(char2idx)
 
     return char2idx, tag2idx, idx2tag
 
@@ -177,16 +146,6 @@ def save_vocab(char2idx, tag2idx, char2idx_path, tag2idx_path):
 
 # 加载词汇表
 def load_vocab(char2idx_path, tag2idx_path):
-    """
-    从压缩文件加载字符表和标签表。
-
-    Args:
-        char2idx_path (str): 字符表文件路径。
-        tag2idx_path (str): 标签表文件路径。
-
-    Returns:
-        tuple: (char2idx, tag2idx, idx2tag)
-    """
     char2idx = {}
     with gzip.open(char2idx_path, "rb") as f:
         unpickler = pickle.Unpickler(f)
@@ -198,7 +157,7 @@ def load_vocab(char2idx_path, tag2idx_path):
     with gzip.open(tag2idx_path, "rb") as f:
         tag2idx = pickle.load(f)
     idx2tag = {idx: tag for tag, idx in tag2idx.items()}
-    return char2idx, tag2idx, idx2tag
+    return char2idx, tag2idx, idx2tag  # 返回 3 个值，与之前保持一致
 
 # 主流程示例
 if __name__ == "__main__":

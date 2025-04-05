@@ -45,14 +45,13 @@ def collate_fn(batch):
 
 def train():
     device = torch.device("cpu")
-    torch.set_num_threads(cpu_count())
+    torch.set_num_threads(2)
     print(f"Using {cpu_count()} CPU cores")
 
-    data_file = "data/train.txt"
+    data_file = "data/train1000.txt"
     char2idx_path = "data/char2idx.pkl.gz"
     tag2idx_path = "data/tag2idx.pkl.gz"
 
-    # 检查训练文件是否存在
     if not os.path.exists(data_file):
         raise FileNotFoundError(f"Training file not found: {data_file}")
 
@@ -60,23 +59,15 @@ def train():
     start_time = time.time()
     training_data = load_data(data_file)
     print(f"Loaded {len(training_data)} samples in {time.time() - start_time:.2f}s")
-    if not training_data:
-        raise ValueError(f"No data loaded from {data_file}")
 
     print("Building vocab...")
-    start_time = time.time()
     char2idx, tag2idx, idx2tag = build_vocab(training_data)
-    print(f"Vocab built in {time.time() - start_time:.2f}s")
+    print(f"Vocab size: {len(char2idx)}, Tag size: {len(tag2idx)}")
 
-    # 检查是否需要保存词汇表
-    if not (os.path.exists(char2idx_path) and os.path.exists(tag2idx_path)):
-        print("Saving vocab...")
-        save_vocab(char2idx, tag2idx, char2idx_path, tag2idx_path)
-    else:
-        print("Vocab files already exist, skipping save...")
+    print("Saving vocab...")
+    save_vocab(char2idx, tag2idx, char2idx_path, tag2idx_path)
 
     print("Preprocessing data...")
-    start_time = time.time()
     indexed_data = preprocess_data(training_data, char2idx, tag2idx)
     print(f"Preprocessed {len(indexed_data)} samples in {time.time() - start_time:.2f}s")
 
