@@ -3,17 +3,17 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
 from models.bilstm_crf import BiLSTM_CRF
-from utils.data_loader import load_data, build_vocab, save_vocab
-from functools import partial
+from utils.data_loader import load_data, build_vocab, save_vocab, load_vocab
+import os
+import time
+from multiprocessing import cpu_count
 
 
 class NERDataset(Dataset):
-    def __init__(self, training_data, char2idx, tag2idx):
-        self.data = []
-        for sentence, tags in training_data:
-            char_ids = [char2idx.get(char, char2idx["<UNK>"]) for char in sentence]
-            tag_ids = [tag2idx.get(tag, tag2idx["<PAD>"]) for tag in tags]
-            self.data.append((torch.tensor(char_ids), torch.tensor(tag_ids)))
+    def __init__(self, indexed_data):
+        if not indexed_data:
+            raise ValueError("indexed_data is empty")
+        self.data = indexed_data
 
     def __len__(self):
         return len(self.data)
@@ -22,36 +22,71 @@ class NERDataset(Dataset):
         return self.data[idx]
 
 
-def collate_fn(batch, char2idx, tag2idx):
+def preprocess_data(training_data, char2idx, tag2idx):
+    """预处理数据并返回索引格式"""
+    if not training_data:
+        raise ValueError("training_data is empty")
+    indexed_data = []
+    for sentence, tags in training_data:
+        char_ids = [char2idx.get(char, char2idx["<UNK>"]) for char in sentence]
+        tag_ids = [tag2idx.get(tag, tag2idx["<PAD>"]) for tag in tags]
+        indexed_data.append((torch.tensor(char_ids, dtype=torch.long),
+                             torch.tensor(tag_ids, dtype=torch.long)))
+    return indexed_data
+
+
+def collate_fn(batch):
+    """动态填充到批次最大长度"""
     sentences, tags = zip(*batch)
-    sentences = pad_sequence(sentences, batch_first=True, padding_value=char2idx["<PAD>"])
-    tags = pad_sequence(tags, batch_first=True, padding_value=tag2idx["<PAD>"])
-    return sentences, tags
+    sentences_padded = pad_sequence(sentences, batch_first=True, padding_value=0)
+    tags_padded = pad_sequence(tags, batch_first=True, padding_value=0)
+    return sentences_padded, tags_padded
 
 
 def train():
+    device = torch.device("cpu")
+    torch.set_num_threads(cpu_count())
+    print(f"Using {cpu_count()} CPU cores")
+
+    data_file = "data/train.txt"
+    char2idx_path = "data/char2idx.pkl.gz"
+    tag2idx_path = "data/tag2idx.pkl.gz"
+
+    # 检查训练文件是否存在
+    if not os.path.exists(data_file):
+        raise FileNotFoundError(f"Training file not found: {data_file}")
+
     print("Loading data...")
-    training_data = load_data("data/train.txt")
-    print(f"Loaded {len(training_data)} samples")
+    start_time = time.time()
+    training_data = load_data(data_file)
+    print(f"Loaded {len(training_data)} samples in {time.time() - start_time:.2f}s")
+    if not training_data:
+        raise ValueError(f"No data loaded from {data_file}")
 
     print("Building vocab...")
+    start_time = time.time()
     char2idx, tag2idx, idx2tag = build_vocab(training_data)
-    if "<PAD>" not in char2idx:
-        char2idx["<PAD>"] = len(char2idx)
-    if "<UNK>" not in char2idx:
-        char2idx["<UNK>"] = len(char2idx)
-    if "<PAD>" not in tag2idx:
-        tag2idx["<PAD>"] = len(tag2idx)
+    print(f"Vocab built in {time.time() - start_time:.2f}s")
 
-    print("Saving vocab...")
-    save_vocab(char2idx, tag2idx, "data/char2idx.pkl.gz", "data/tag2idx.pkl.gz")
+    # 检查是否需要保存词汇表
+    if not (os.path.exists(char2idx_path) and os.path.exists(tag2idx_path)):
+        print("Saving vocab...")
+        save_vocab(char2idx, tag2idx, char2idx_path, tag2idx_path)
+    else:
+        print("Vocab files already exist, skipping save...")
 
     print("Preprocessing data...")
-    dataset = NERDataset(training_data, char2idx, tag2idx)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True,
-                            collate_fn=partial(collate_fn, char2idx=char2idx, tag2idx=tag2idx))
+    start_time = time.time()
+    indexed_data = preprocess_data(training_data, char2idx, tag2idx)
+    print(f"Preprocessed {len(indexed_data)} samples in {time.time() - start_time:.2f}s")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # 初始化数据集和 DataLoader
+    dataset = NERDataset(indexed_data)
+    num_workers = min(cpu_count(), 8)
+    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, num_workers=num_workers,
+                            collate_fn=collate_fn)
+
+    # 初始化模型
     model = BiLSTM_CRF(len(char2idx), len(tag2idx), embedding_dim=100, hidden_dim=128).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
@@ -62,18 +97,25 @@ def train():
     for epoch in range(10):
         model.train()
         total_loss = 0
+        start_time = time.time()
+
         for i, (sentences, tags) in enumerate(dataloader):
             sentences, tags = sentences.to(device), tags.to(device)
+
             if i == 0 and epoch == 0:
                 print(f"Batch 0: max sentence index: {sentences.max().item()}, max tag index: {tags.max().item()}")
                 print(f"Batch 0 shape: sentences {sentences.shape}, tags {tags.shape}")
-            model.zero_grad()
+
+            optimizer.zero_grad(set_to_none=True)
             loss = model.neg_log_likelihood(sentences, tags)
             loss.backward()
             optimizer.step()
+
             total_loss += loss.item()
+
         avg_loss = total_loss / len(dataloader)
-        print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}")
+        epoch_time = time.time() - start_time
+        print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}, Time: {epoch_time:.2f}s")
 
     print("Saving model...")
     torch.save(model.state_dict(), "model.pt")
