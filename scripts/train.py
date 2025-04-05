@@ -35,26 +35,30 @@ def collate_fn(batch):
     return sentences_padded, tags_padded
 
 def train_on_chunk(chunk_data, model, optimizer, device, char2idx, tag2idx, epoch_start=0):
-    dataset = NERDataset(chunk_data, char2idx, tag2idx)
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, num_workers=2, collate_fn=collate_fn)
-    for epoch in range(epoch_start, 10):
-        model.train()
-        total_loss = 0
-        start_time = time.time()
-        for sentences, tags in dataloader:
-            sentences, tags = sentences.to(device), tags.to(device)
-            optimizer.zero_grad()
-            loss = model.neg_log_likelihood(sentences, tags)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-        avg_loss = total_loss / len(dataloader)
-        print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}, Time: {time.time() - start_time:.2f}s")
-    return model
+    try:
+        dataset = NERDataset(chunk_data, char2idx, tag2idx)
+        dataloader = DataLoader(dataset, batch_size=64, shuffle=True, num_workers=1, collate_fn=collate_fn)
+        for epoch in range(epoch_start, 10):
+            model.train()
+            total_loss = 0
+            start_time = time.time()
+            for sentences, tags in dataloader:
+                sentences, tags = sentences.to(device), tags.to(device)
+                optimizer.zero_grad()
+                loss = model.neg_log_likelihood(sentences, tags)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+            avg_loss = total_loss / len(dataloader)
+            print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}, Time: {time.time() - start_time:.2f}s")
+        return model
+    except Exception as e:
+        print(f"Error in chunk training: {e}")
+        raise
 
 def train():
     device = torch.device("cpu")
-    torch.set_num_threads(4)
+    torch.set_num_threads(3)  # 留 1 核给系统
     print(f"Using {cpu_count()} CPU cores")
 
     data_file = "data/train1000.txt"
@@ -76,15 +80,16 @@ def train():
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
 
     print("Starting training...")
-    chunk_size = 1000000
+    chunk_size = 500000  # 减小到 50 万条，确保内存安全
     for i, chunk in enumerate(load_data_chunk(data_file, chunk_size=chunk_size)):
         print(f"Training chunk {i + 1} with {len(chunk)} samples...")
+        print(f"Memory usage before chunk: {psutil.virtual_memory().percent}%")
         start_time = time.time()
         model = train_on_chunk(chunk, model, optimizer, device, char2idx, tag2idx)
         print(f"Chunk {i + 1} trained in {time.time() - start_time:.2f}s")
         del chunk
         gc.collect()
-        print(f"Memory usage: {psutil.virtual_memory().percent}%")
+        print(f"Memory usage after chunk: {psutil.virtual_memory().percent}%")
 
     print("Saving model...")
     torch.save(model.state_dict(), "model.pt")
