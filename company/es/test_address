@@ -1,0 +1,50 @@
+PUT test_address
+{
+   "mappings": {
+      "properties": {
+        "address": {
+          "type": "text"
+        },
+        "province": {
+          "type": "keyword"
+        },
+        "city": {
+          "type": "keyword"
+        },
+        "district": {
+          "type": "keyword"
+        },
+        "town": {
+          "type": "keyword"
+        },
+        "extra_address": {
+          "type": "text"
+        },
+        "wrong_province": {
+          "type": "keyword"
+        },
+        "wrong_city": {
+          "type": "keyword"
+        },
+        "wrong_district": {
+          "type": "keyword"
+        },
+        "wrong_town": {
+          "type": "keyword"
+        },
+        "wrong_extra_address": {
+          "type": "text"
+        },
+        "type": {
+          "type": "keyword"
+        }
+      }
+    },
+    "settings": {
+      "index": {
+        "refresh_interval": "120s",
+        "number_of_shards": "1",
+        "number_of_replicas": "0"
+      }
+    }
+}

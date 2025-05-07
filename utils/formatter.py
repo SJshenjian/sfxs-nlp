@@ -17,6 +17,8 @@ def extract_fields(tokens):
             structured["city"] = token
         elif tag == "DISTRICT":
             structured["district"] = token
+        elif tag == "DEV":
+            structured["dev"] = token
         elif tag == "TOWN":
             structured["town"] = token
         elif tag == "EXTRA":
